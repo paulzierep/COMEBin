@@ -41,7 +41,7 @@ conda create -n comebin_env comebin pytorch-cpu \
 conda activate comebin_env
 ```
 
-The Bioconda package declares PyTorch as a runtime dependency. The `pytorch-gpu` and `pytorch-cpu` metapackages select the corresponding conda-forge build. The CUDA 13.0 example matches the PyTorch 2.13 dependency used by COMEBin 1.1.0.
+The Bioconda package declares PyTorch as a runtime dependency. The `pytorch-gpu` and `pytorch-cpu` metapackages select the corresponding conda-forge build. The Bioconda installation uses the conda-forge PyTorch 2.13 build with CUDA 13.0 by default. To use CUDA 12.6 or another CUDA version not provided by conda-forge, please install COMEBin from source and then install the corresponding CUDA-enabled PyTorch build with pip.
 
 ## <a name="started"></a>Install COMEBin via source code
 You can also install COMEBin from the source code. 
@@ -56,10 +56,10 @@ Then, create an environment to run COMEBin.
 cd path_to_COMEBin
 conda env create -f comebin_env.yaml
 conda activate COMEBin
-python -m pip install torch --index-url https://download.pytorch.org/whl/cu126
+python -m pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cu126
 ```
 
-`comebin_env.yaml` installs COMEBin's other dependencies but intentionally does not install PyTorch. The command above installs the CUDA 12.6 build by default. For the CUDA 13.0 build or a CPU-only build, use the [official PyTorch installation selector](https://pytorch.org/get-started/locally/).
+`comebin_env.yaml` installs COMEBin's other dependencies but intentionally does not install PyTorch. The command above installs PyTorch 2.13.0 with CUDA 12.6 by default. For the CUDA 13.0 build or a CPU-only build, use the [official PyTorch installation selector](https://pytorch.org/get-started/locally/).
 
 ## <a name="demo"></a>A test dataset to demo COMEBin
 We provide a small dataset to demo and test the software. Test data is available at https://drive.google.com/file/d/1xWpN2z8JTaAzWW4TcOl0Lr4Y_x--Fs5s/view?usp=sharing.
