@@ -53,20 +53,26 @@ def gen_bins(fastafile: str, resultfile: str, outputdir: str) -> None:
     if not os.path.exists(outputdir):
         os.makedirs(outputdir)
 
+    # Number bins sequentially (0, 1, 2, ...), one number per cluster/bin —
+    # NOT per contig. The old code incremented bin_name inside the contig loop,
+    # so bin IDs were the cumulative contig count, and clusters whose contigs
+    # were all missing emitted empty/skipped files. Now: emit a file only when
+    # at least one contig survives (sequences are kept in memory).
     bin_name = 0
     for _, cluster in dic.items():
+        lines = []
+        for contig_name in cluster:
+            sequence = sequences.get(">" + contig_name)
+            if sequence is None:
+                continue
+            lines.append(">" + contig_name + "\n")
+            lines.append(sequence + "\n")
+        if not lines:
+            continue
         binfile = os.path.join(outputdir, "{}.fa".format(bin_name))
         with open(binfile, "w") as f:
-            for contig_name in cluster:
-                contig_name = ">" + contig_name
-                try:
-                    sequence = sequences[contig_name]
-                except:
-                    bin_name += 1
-                    continue
-                f.write(contig_name + "\n")
-                f.write(sequence + "\n")
-                bin_name += 1
+            f.writelines(lines)
+        bin_name += 1
 
 
 def filter_small_bins(logger, fastafile: str, resultfile: str, args, minbinsize: int = 200000) -> None:

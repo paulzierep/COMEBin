@@ -49,20 +49,24 @@ def gen_bins(fastafile, resultfile, outputdir):
     if not os.path.exists(outputdir):
         os.makedirs(outputdir)
 
+    # Number bins sequentially (0, 1, 2, ...), one number per cluster/bin — NOT
+    # per contig (the old code incremented inside the contig loop, producing
+    # cumulative-contig-count IDs and empty files for all-missing clusters).
     bin_name = 0
     for _, cluster in dic.items():
+        lines = []
+        for contig_name in cluster:
+            sequence = sequences.get(">" + contig_name)
+            if sequence is None:
+                continue
+            lines.append(">" + contig_name + "\n")
+            lines.append(sequence + "\n")
+        if not lines:
+            continue
         binfile = os.path.join(outputdir, "{}.fa".format(bin_name))
         with open(binfile, "w") as f:
-            for contig_name in cluster:
-                contig_name = ">" + contig_name
-                try:
-                    sequence = sequences[contig_name]
-                except:
-                    bin_name += 1
-                    continue
-                f.write(contig_name + "\n")
-                f.write(sequence + "\n")
-                bin_name += 1
+            f.writelines(lines)
+        bin_name += 1
 
 
 if __name__ == "__main__":
