@@ -124,6 +124,8 @@ def calculate_coverage_samplebyindex(depth_file: str, augpredix: str, aug_seq_in
 
         cov_threshold = contig_threshold
 
+        if contig_name not in aug_seq_info_dict:
+            continue
         if len(depth_value) <= cov_threshold:
             continue
         start = aug_seq_info_dict[contig_name][0]
