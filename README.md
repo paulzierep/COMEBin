@@ -26,6 +26,26 @@ COMEBin requires only a standard computer with enough RAM to support the in-memo
 ### OS Requirements
 COMEBin v1.1.0 is supported and tested in Linux systems.
 
+### Dependencies
+Besides the Python packages installed by `comebin_env.yaml` (which intentionally does not install PyTorch, see the install sections above), the full pipeline relies on these command-line tools:
+
+| Tool | Where it is used |
+|------|------------------|
+| `bedtools` | computing per-contig coverage from each bam file (`bedtools genomecov -bga -ibam`) |
+| `bowtie2` (or `bwa`) and `samtools` | preprocessing: aligning reads to contigs and producing coordinate-sorted bam files (see the preprocessing section) |
+| `FragGeneScan` and `run_FragGeneScan.pl` | predicting seed genes from the contigs for marker-based clustering |
+| `hmmsearch` (HMMER) | searching seed proteins against the bundled marker HMMs (`auxiliary/bacar_marker.hmm`) |
+| `perl` | running the bundled marker wrapper script (`auxiliary/test_getmarker_2quarter.pl`) |
+| `checkm` (CheckM v1, incl. its data bundle) | profiling candidate bins during the final selection (the `scripts/checkm_ms/*.ms` marker sets are bundled) |
+
+All of them are available from conda-forge/bioconda, e.g.:
+
+```sh
+conda install -c conda-forge -c bioconda bedtools samtools bowtie2 bwa hmmer fraggenescan checkm-genome
+```
+
+`checkm` needs its reference data directory; on first use point it to the data, e.g. `checkm data setRoot /path/to/checkm_data`.
+
 ## <a name="install"></a>Install COMEBin via bioconda
 COMEBin can be installed from Bioconda with the GPU-enabled PyTorch build from conda-forge:
 ```sh
@@ -147,6 +167,32 @@ bash path_to_COMEBin/COMEBin/run_comebin.sh -a ${contig_file} \
 -p ${path_to_bamfiles} \
 -d cuda \
 -t 40
+```
+
+### Limiting memory and CPU usage
+`run_comebin.sh` exposes several options (see `bash run_comebin.sh -h`) to fit COMEBin on machines with limited RAM or CPUs:
+
+| Option | What it controls | Effect on resource usage |
+|--------|------------------|--------------------------|
+| `-d cpu` (or `cuda:N`) | training device | CPU avoids GPU memory, but the 200-epoch training is slowest on CPU |
+| `-b INT` | training batch size (default 1024) | the main lever on training memory; try 384-512 on low-RAM machines |
+| `-t INT` | PyTorch intra-op threads (default 5) | lower reduces the per-thread kernel workspace |
+| `-n INT` | number of views (default 6) | lower reduces feature/DataLoader memory |
+| `-e INT` / `-c INT` | combine/coverage network embedding sizes (default 2048) | lower reduces model parameter memory |
+| `-w INT` | concurrent Leiden workers (default = `-t`) | lower reduces the peak memory of the clustering step |
+| `-m INT` | HNSW neighbors kept per contig (default 100) | lower reduces index memory during clustering |
+| `-s INT` | random seed for reproducible runs | -- |
+
+Practical notes for low-memory runs:
+
+- The training DataLoader uses a fixed worker count (currently 4) regardless of `-t`, and every worker holds a copy of the feature tensors. Prefer reducing `-b`/`-e`/`-n` over relying on thread settings alone.
+- Coverage calculation (augmentation step) runs one `bedtools genomecov` per bam; it is single-threaded per bam but bam files from different samples are processed in parallel with up to `--num_threads` workers.
+- Do not run several COMEBin training processes at the same time: peak memory per process does not shrink, so combined usage can easily exceed a few GiB.
+- If the process is killed with status 137 (SIGKILL), it hit a memory limit (often a container/cgroup limit). Check available memory with `free -h` (and `cat /sys/fs/cgroup/memory.max` in containers) before launching.
+- To additionally cap the native/OpenMP/BLAS thread pools:
+
+```sh
+export OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2
 ```
 
 ## <a name="References"></a>References
