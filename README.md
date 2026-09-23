@@ -195,6 +195,49 @@ Practical notes for low-memory runs:
 export OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2
 ```
 
+#### Worked example: CPU-only run inside a ~4 GiB memory cap
+These numbers were measured while running the bundled test dataset (29,434 contigs, one ~5 GB bam) on a CPU-only container limited to 3.8 GiB (cgroup `memory.max`):
+
+- **Data augmentation** finished in ~11 minutes. Coverage comes from one `bedtools genomecov` stream per bam; nothing to tune for a single-sample run.
+- **Training is the bottleneck.** With `--batch_size 384 --num_threads 2` peak RSS stays under the cap:
+  - main process ≈ 1.5-1.6 GB,
+  - four fixed DataLoader workers ≈ 0.53 GB each,
+  - combined ≈ 3.5 GB of the 3.8 GiB cap.
+- **Timing** at 2 threads ≈ 8-9 s per batch, ≈ 10 min per epoch, up to ~33 h for 200 epochs. With `--earlystop` the loop breaks after top1 accuracy stays > 99% for 3 consecutive epochs (checked from epoch 10 on), which usually ends the run much earlier.
+
+Because `main.py train` is long-running on CPU, launch it detached so it survives the launching shell being closed:
+
+```sh
+conda activate COMEBin
+cd path_to_COMEBin/COMEBin
+OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 PYTHONUNBUFFERED=1 \
+  setsid nohup python main.py train \
+    --data output_dir/data_augmentation \
+    --emb_szs_forcov 2048 --emb_szs 2048 --n_views 6 \
+    --batch_size 384 --num_threads 2 --earlystop --addvars --vars_sqrt \
+    --device cpu --output_path output_dir/comebin_res \
+    > /tmp/comebin_train.log 2>&1 < /dev/null &
+```
+
+Monitor progress with `tail -f /tmp/comebin_train.log`; the tqdm line shows the current batch, and `loss`/`top1` lines are printed every 20 steps. When it finishes, `comebin_res/` contains `embeddings.npy`, `covembeddings.npy`, `embedding_manifest.json`, etc., and the remaining stages can be run exactly as `run_comebin.sh` does:
+
+```sh
+# marker-gene seed file (auto-generated with FragGeneScan + hmmsearch if missing)
+seed_file="${contig_file}.bacar_marker.2quarter_lencutoff_1001.seed"
+
+python main.py bin --contig_file "${contig_file}" \
+  --emb_file output_dir/comebin_res/embeddings.npy \
+  --output_path output_dir/comebin_res \
+  --seed_file "${seed_file}" --num_threads 2 --hmm_evalue 1e-5 --max_edges 100
+
+python main.py get_result --contig_file "${contig_file}" \
+  --output_path output_dir/comebin_res \
+  --emb_file output_dir/comebin_res/embeddings.npy \
+  --seed_file "${seed_file}" --num_threads 2 --max_edges 100 --hmm_evalue 1e-5
+```
+
+The binning result is written to `output_dir/comebin_res/comebin_res_bins` and `comebin_res.tsv` under `output_dir/comebin_res` (see the How to run section).
+
 ## <a name="References"></a>References
 [1] Meyer F, Fritz A, Deng Z L, et al. Critical assessment of metagenome interpretation: the second round of challenges[J]. Nature methods, 2022, 19(4): 429-440.
 
