@@ -121,10 +121,14 @@ def gen_seed_idx(seedURL: str, contig_id_list: List[str]) -> List[int]:
     :return: List[int]
     """
     seed_list = []
-    with open(seedURL) as f:
-        for line in f:
-            if line.rstrip('\n') in contig_id_list:
-                seed_list.append(line.rstrip('\n'))
+    try:
+        with open(seedURL) as f:
+            for line in f:
+                stripped = line.rstrip('\n')
+                if stripped in contig_id_list:
+                    seed_list.append(stripped)
+    except FileNotFoundError:
+        pass
     name_map = dict(zip(contig_id_list, range(len(contig_id_list))))
     seed_idx = [name_map[seed_name] for seed_name in seed_list]
     return seed_idx
