@@ -61,7 +61,7 @@ def calculate_coverage_var_samplebyindex(depth_file: str, augpredix: str, aug_se
         for line in lines:
             line_split = line.strip().split('\t')
             length = int(float(line_split[2])) - int(float(line_split[1]))
-            value = int(float(line_split[3]))
+            value = float(line_split[3])  # keep fractional depth instead of truncating to int
             depth_value.extend([value] * length)
 
         cov_threshold = contig_threshold
@@ -108,7 +108,7 @@ def calculate_coverage_var(depth_file: str, logger, edge: int = 0, contig_thresh
         for line in lines:
             line_split = line.strip().split('\t')
             length = int(float(line_split[2])) - int(float(line_split[1]))
-            value = int(float(line_split[3]))
+            value = float(line_split[3])  # keep fractional depth instead of truncating to int
             depth_value.extend([value] * length)
 
         if sep is None:

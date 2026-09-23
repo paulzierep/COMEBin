@@ -49,20 +49,19 @@ def gen_bins(fastafile, resultfile, outputdir):
     if not os.path.exists(outputdir):
         os.makedirs(outputdir)
 
+    # Number bins sequentially (0, 1, 2, ...), one number per cluster/bin —
+    # NOT per contig (see COMEBin/filter_small_bins.py for the rationale).
     bin_name = 0
     for _, cluster in dic.items():
         binfile = os.path.join(outputdir, "{}.fa".format(bin_name))
         with open(binfile, "w") as f:
             for contig_name in cluster:
-                contig_name = ">" + contig_name
-                try:
-                    sequence = sequences[contig_name]
-                except:
-                    bin_name += 1
+                sequence = sequences.get(">" + contig_name)
+                if sequence is None:
                     continue
-                f.write(contig_name + "\n")
+                f.write(">" + contig_name + "\n")
                 f.write(sequence + "\n")
-                bin_name += 1
+        bin_name += 1
 
 
 if __name__ == "__main__":
