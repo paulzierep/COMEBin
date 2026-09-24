@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 from itertools import groupby
 from typing import List, Optional, Union, Dict, Tuple
+from utils import read_fasta_ids
 
 ### Return error message when using multiprocessing
 def error(msg, *args):
@@ -90,7 +91,8 @@ def calculate_coverage_var_samplebyindex(depth_file: str, augpredix: str, aug_se
 
 
 def calculate_coverage_var(depth_file: str, logger, edge: int = 0, contig_threshold: int = 1000, sep: Optional[str] = None,
-                           contig_threshold_dict: Optional[Dict[str, int]] = None):
+                           contig_threshold_dict: Optional[Dict[str, int]] = None,
+                           valid_contigs=None):
     """
     Calculate coverage variance per contig and save the results to a CSV file.
 
@@ -99,6 +101,7 @@ def calculate_coverage_var(depth_file: str, logger, edge: int = 0, contig_thresh
     :param contig_threshold: The minimum depth threshold for a contig to be considered (default is 1000).
     :param sep: Separator for distinguishing sample names in contig names (default is None).
     :param contig_threshold_dict: A dictionary containing sample-specific contig thresholds when `sep` is provided (default is None).
+    :param valid_contigs: Optional set of contig IDs from the input assembly; references outside it are ignored.
 
     :return: A tuple containing the path to the processed depth file and the logger object.
     """
@@ -106,6 +109,8 @@ def calculate_coverage_var(depth_file: str, logger, edge: int = 0, contig_thresh
     var_coverage = []
 
     for contig_name, lines in groupby(open(depth_file), lambda ell: ell.split('\t', 1)[0]):
+        if valid_contigs is not None and contig_name not in valid_contigs:
+            continue
         depth_value = []
         for line in lines:
             line_split = line.strip().split('\t')
@@ -146,6 +151,7 @@ def gen_cov_var_from_bedout(logger, out_path, depth_file_path, num_process=10, n
             namelist.append(filename)
 
     namelist.sort()
+    valid_contigs = set(read_fasta_ids(os.path.join(out_path, 'aug0', 'sequences_aug0.fasta')))
 
     pool = LoggingPool(num_process) if num_process != 0 else LoggingPool()
     ##generate coverage for original data
@@ -153,7 +159,7 @@ def gen_cov_var_from_bedout(logger, out_path, depth_file_path, num_process=10, n
         depth_file = depth_file_path + namelist[i]
         pool.apply_async(
             calculate_coverage_var,
-            args=(depth_file, logger, edge, contig_len),
+            args=(depth_file, logger, edge, contig_len, None, None, valid_contigs),
             callback=_checkback)
 
     pool.close()

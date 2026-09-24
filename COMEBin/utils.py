@@ -67,6 +67,38 @@ def get_length(fastx_file):
     return length
 
 
+def read_fasta_ids(fasta_file):
+    """Return sequence identifiers in FASTA order.
+
+    Coverage matrices can contain references from a BAM header that are not
+    present in the assembly supplied to COMEBin.  Keep the feature row order
+    tied to the actual assembly rather than to a coverage artifact.
+    """
+    ids = []
+    with open(fasta_file) as fasta:
+        for line in fasta:
+            if line.startswith('>'):
+                ids.append(line[1:].split()[0])
+    if not ids:
+        raise ValueError(f'No FASTA records found in {fasta_file}')
+    return ids
+
+
+def align_feature_rows(row_names, target_names, label):
+    """Map feature rows to the assembly's contig order and fail on gaps."""
+    target_index = {name: index for index, name in enumerate(target_names)}
+    row_index = np.full(len(target_names), -1, dtype=np.int64)
+    for index, name in enumerate(row_names):
+        base_name = str(name).split('_aug', 1)[0]
+        target = target_index.get(base_name)
+        if target is not None:
+            row_index[target] = index
+    missing = [target_names[index] for index, value in enumerate(row_index) if value < 0]
+    if missing:
+        preview = ', '.join(missing[:5])
+        raise ValueError(f'{label} is missing {len(missing)} assembly contig(s): {preview}')
+    return row_index
+
 
 def save_result(result, filepath, namelist):
     filedir, filename = os.path.split(filepath)
@@ -96,8 +128,8 @@ def calculateN50(seqLens):
 
 
 def get_kmer_coverage_aug0(data_path):
-    namelist = pd.read_csv(data_path + 'aug0_datacoverage_mean.tsv', sep='\t', usecols=range(1)).values[:, 0]
-    mapObj = dict(zip(namelist, range(len(namelist))))
+    fasta_file = data_path.rstrip('/') + '/aug0/sequences_aug0.fasta'
+    namelist = read_fasta_ids(fasta_file)
 
     cov_file = data_path + 'aug0_datacoverage_mean.tsv'
     com_file = data_path + 'aug0/kmer_4_f0.csv'
@@ -106,20 +138,16 @@ def get_kmer_coverage_aug0(data_path):
     shuffled_covMat = pd.read_csv(cov_file, sep='\t', usecols=range(1, covHeader.shape[1])).values
     shuffled_namelist = pd.read_csv(cov_file, sep='\t', usecols=range(1)).values[:, 0]
 
-    covIdxArr = np.empty(len(mapObj), dtype=np.int)
-    for contigIdx in range(len(shuffled_namelist)):
-        if shuffled_namelist[contigIdx].split('_aug')[0] in mapObj:
-            covIdxArr[mapObj[shuffled_namelist[contigIdx].split('_aug')[0]]] = contigIdx
+    covIdxArr = align_feature_rows(shuffled_namelist, namelist,
+                                   f'{cov_file} coverage')
     covMat = shuffled_covMat[covIdxArr]
 
     compositHeader = pd.read_csv(com_file, sep=',', nrows=1)
     shuffled_compositMat = pd.read_csv(com_file, sep=',', usecols=range(1, compositHeader.shape[1])).values
     shuffled_namelist = pd.read_csv(com_file, sep=',', usecols=range(1)).values[:, 0]
 
-    covIdxArr = np.empty(len(mapObj), dtype=np.int)
-    for contigIdx in range(len(shuffled_namelist)):
-        if shuffled_namelist[contigIdx].split('_aug')[0] in mapObj:
-            covIdxArr[mapObj[shuffled_namelist[contigIdx].split('_aug')[0]]] = contigIdx
+    covIdxArr = align_feature_rows(shuffled_namelist, namelist,
+                                   f'{com_file} k-mer features')
     compositMat = shuffled_compositMat[covIdxArr]
 
     # use cov_maxnormalize

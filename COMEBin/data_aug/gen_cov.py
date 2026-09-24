@@ -9,6 +9,7 @@ from atomicwrites import atomic_write
 import pandas as pd
 import numpy as np
 from itertools import groupby
+from utils import read_fasta_ids
 
 ### Return error message when using multiprocessing
 def error(msg, *args):
@@ -149,7 +150,8 @@ def calculate_coverage_samplebyindex(depth_file: str, augpredix: str, aug_seq_in
 
 def calculate_coverage(depth_file: str, logger, edge: int = 0,
                        contig_threshold: int = 1000, sep: str = None,
-                       contig_threshold_dict: dict = None):
+                       contig_threshold_dict: dict = None,
+                       valid_contigs=None):
     """
     Calculate coverage based on a position depth file generated from mosdepth or bedtools genomecov.
 
@@ -158,6 +160,7 @@ def calculate_coverage(depth_file: str, logger, edge: int = 0,
     :param contig_threshold: Threshold of contigs for must-link constraints (int, default: 1000).
     :param sep: Separator for multi-sample binning (str, default: None).
     :param contig_threshold_dict: Dictionary of contig thresholds by sample (dict, default: None).
+    :param valid_contigs: Optional set of contig IDs from the input assembly; references outside it are ignored.
 
     :return: None
     """
@@ -165,6 +168,8 @@ def calculate_coverage(depth_file: str, logger, edge: int = 0,
     mean_coverage = []
 
     for contig_name, lines in groupby(open(depth_file), lambda ell: ell.split('\t', 1)[0]):
+        if valid_contigs is not None and contig_name not in valid_contigs:
+            continue
         depth_value = []
         for line in lines:
             line_split = line.strip().split('\t')
@@ -219,6 +224,7 @@ def gen_cov_from_bedout(logger, out_path: str, depth_file_path: str,
             namelist.append(filename)
 
     namelist.sort()
+    valid_contigs = set(read_fasta_ids(os.path.join(out_path, 'aug0', 'sequences_aug0.fasta')))
 
     pool = LoggingPool(num_process) if num_process != 0 else LoggingPool()
     ##generate coverage for original data
@@ -226,7 +232,7 @@ def gen_cov_from_bedout(logger, out_path: str, depth_file_path: str,
         depth_file = depth_file_path + namelist[i]
         pool.apply_async(
             calculate_coverage,
-            args=(depth_file, logger, edge, contig_len),
+            args=(depth_file, logger, edge, contig_len, None, None, valid_contigs),
             callback=_checkback)
 
     pool.close()

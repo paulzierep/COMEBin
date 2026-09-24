@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import torch
-from utils import get_kmerMetric_emb
+from utils import align_feature_rows, get_kmerMetric_emb, read_fasta_ids
 from sklearn.preprocessing import normalize
 
 def get_kmer_coverage(data_path: str, n_views: int = 2, kmer_model_path: str = 'empty',
@@ -26,9 +26,11 @@ def get_kmer_coverage(data_path: str, n_views: int = 2, kmer_model_path: str = '
 
     :return: A list of preprocessed data and a list of contig names.
     """
-    namelist = pd.read_csv(data_path + 'aug0_datacoverage_mean.tsv', sep='\t', usecols=range(1)).values[:, 0]
-
-    mapObj = dict(zip(namelist, range(len(namelist))))
+    # Use the assembly/aug0 FASTA as the canonical row order.  bedtools may
+    # emit zero-depth rows for every reference in a BAM header, including
+    # references absent from a deliberately reduced benchmark assembly.
+    fasta_file = data_path.rstrip('/') + '/aug0/sequences_aug0.fasta'
+    namelist = read_fasta_ids(fasta_file)
     for view in range(n_views):
         cov_file = data_path + 'aug' + str(view) + '_datacoverage_mean.tsv'
         if not nokmer:
@@ -38,10 +40,8 @@ def get_kmer_coverage(data_path: str, n_views: int = 2, kmer_model_path: str = '
         shuffled_covMat = pd.read_csv(cov_file, sep='\t', usecols=range(1, covHeader.shape[1])).values
         shuffled_namelist = pd.read_csv(cov_file, sep='\t', usecols=range(1)).values[:, 0]
 
-        covIdxArr = np.zeros(len(mapObj), dtype=np.int)
-        for contigIdx in range(len(shuffled_namelist)):
-            if shuffled_namelist[contigIdx].split('_aug')[0] in mapObj:
-                covIdxArr[mapObj[shuffled_namelist[contigIdx].split('_aug')[0]]] = contigIdx
+        covIdxArr = align_feature_rows(shuffled_namelist, namelist,
+                                       f'{cov_file} coverage')
         covMat = shuffled_covMat[covIdxArr]
 
 
@@ -50,10 +50,8 @@ def get_kmer_coverage(data_path: str, n_views: int = 2, kmer_model_path: str = '
             shuffled_compositMat = pd.read_csv(com_file, sep=',', usecols=range(1, compositHeader.shape[1])).values
             shuffled_namelist = pd.read_csv(com_file, sep=',', usecols=range(1)).values[:, 0]
 
-            covIdxArr = np.zeros(len(mapObj), dtype=np.int)
-            for contigIdx in range(len(shuffled_namelist)):
-                if shuffled_namelist[contigIdx].split('_aug')[0] in mapObj:
-                    covIdxArr[mapObj[shuffled_namelist[contigIdx].split('_aug')[0]]] = contigIdx
+            covIdxArr = align_feature_rows(shuffled_namelist, namelist,
+                                           f'{com_file} k-mer features')
             compositMat = shuffled_compositMat[covIdxArr]
 
         if addvars:
@@ -63,10 +61,8 @@ def get_kmer_coverage(data_path: str, n_views: int = 2, kmer_model_path: str = '
             shuffled_varsMat = pd.read_csv(vars_file, sep='\t', usecols=range(1, varsHeader.shape[1])).values
             shuffled_namelist = pd.read_csv(vars_file, sep='\t', usecols=range(1)).values[:, 0]
 
-            covIdxArr = np.zeros(len(mapObj), dtype=np.int)
-            for contigIdx in range(len(shuffled_namelist)):
-                if shuffled_namelist[contigIdx].split('_aug')[0] in mapObj:
-                    covIdxArr[mapObj[shuffled_namelist[contigIdx].split('_aug')[0]]] = contigIdx
+            covIdxArr = align_feature_rows(shuffled_namelist, namelist,
+                                           f'{vars_file} variance')
             varsMat = shuffled_varsMat[covIdxArr]
 
         if view == 0:
