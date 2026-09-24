@@ -22,6 +22,7 @@ help_message () {
 	echo "  -e INT          embedding size for comebin network (default=2048)"
 	echo "  -c INT          embedding size for coverage network (default=2048)"
 	echo "  -b INT          batch size for training process (default=1024)"
+	echo "  -E INT          number of training epochs (default=200; lower this for fast functional tests)"
 	echo "";}
 
 
@@ -35,8 +36,9 @@ n_views=6
 emb_szs_forcov=2048
 emb_szs=2048
 batch_size=1024
+epochs=200
 
-while getopts a:o:p:n:t:l:e:c:b: OPT; do
+while getopts a:o:p:n:t:l:e:c:b:E: OPT; do
  case ${OPT} in
   a) contig_file=$(realpath ${OPTARG})
     ;;
@@ -55,6 +57,8 @@ while getopts a:o:p:n:t:l:e:c:b: OPT; do
   c) emb_szs_forcov=${OPTARG}
     ;;
   b) batch_size=${OPTARG}
+    ;;
+  E) epochs=${OPTARG}
     ;;
   \?)
 #    printf "[Usage] `date '+%F %T'` -i <INPUT_FILE> -o <OUTPUT_DIR> -o <P
@@ -148,6 +152,7 @@ if [ -d "$folder" ]; then
         python main.py train --data ${output_dir}/data_augmentation \
         --temperature ${temperature} --emb_szs_forcov ${emb_szs_forcov} \
         --batch_size ${batch_size} --emb_szs ${emb_szs} --n_views ${n_views} \
+        --epochs ${epochs} \
         --add_model_for_coverage \
         --output_path ${output_dir}/comebin_res --earlystop --addvars --vars_sqrt --num_threads ${num_threads}
     else
@@ -159,6 +164,7 @@ else
     python main.py train --data ${output_dir}/data_augmentation \
     --temperature ${temperature} --emb_szs_forcov ${emb_szs_forcov} \
     --batch_size ${batch_size} --emb_szs ${emb_szs} --n_views ${n_views} \
+    --epochs ${epochs} \
     --add_model_for_coverage \
     --output_path ${output_dir}/comebin_res --earlystop --addvars --vars_sqrt --num_threads ${num_threads}
 fi
